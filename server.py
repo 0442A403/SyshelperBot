@@ -185,11 +185,6 @@ def bind_problem_query(call):
 @bot.message_handler(commands = ['report'])
 @query_log
 def report_message(message):
-    #ignore = False
-    #Обработка
-    #if ignore:
-    #    return
-    # Хочется скипать запросы левых чуваков
     if message.chat.type != 'private':
         if not supported_chat(message):
             return
