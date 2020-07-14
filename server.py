@@ -10,7 +10,7 @@ chats = {}
 
 MY_NAME = bot.get_me().username
 
-allsys = set()
+allsys = dict()
 sysadmins = {}
 chats = {-1001167411877}
 
@@ -79,18 +79,24 @@ def add_sysadmin_message(message):
         bot.send_message(message.chat.id, "Пожалуйста, укажите никнейм пользователя.\nПример: /add_sysadmin@"+MY_NAME+" @durov")
         return
     if status == "administrator" or status == "creator":
+        text = ""
         for i in range(1, len(call)):
             #Проверка, что пользователь $i находится в чате???
             user = call[i] if call[i][0] != "@" else call[i][1:]
-            if not user:
-                continue
-            if user.isalnum():
-                if user not in allsys:
-                    allsys[user] = 0
-                allsys[user] += 1
-                sysadmins[message.chat.id].add(user)
-                add_sysadmin_sql(message.chat.id, user)
-                print("Sysadmin " + user + " is now sysadmin")
+            if user not in sysadmins[message.chat.id]:
+                if not user:
+                    continue
+                if user.isalnum():
+                    if user not in allsys:
+                        allsys[user] = 0
+                    allsys[user] += 1
+                    sysadmins[message.chat.id].add(user)
+                    add_sysadmin_sql(message.chat.id, user)
+                    print("Sysadmin " + user + " is now sysadmin")
+            else:
+                text += user + " уже является сисадмином этого чата\n"
+        if text:
+            bot.send_message(message.chat.id, text)
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
@@ -106,6 +112,7 @@ def remove_sysadmin_message(message):
         bot.send_message(message.chat.id, "Пожалуйста, укажите никнейм пользователя.\nПример: /remove_sysadmin@"+MY_NAME+" @durov")
         return
     if status == "administrator" or status == "creator":
+        text = ""
         for i in range(1, len(call)):
             user = call[i] if call[i][0] != "@" else call[i][1:]
             if user in sysadmins[message.chat.id]:
@@ -114,7 +121,11 @@ def remove_sysadmin_message(message):
                     allsys.pop(user)
                 remove_sysadmin_sql(message.chat.id, user)
                 print("Sysadmin " + user + " is not sysadmin anymore")
-            sysadmins[message.chat.id].discard(user)
+                sysadmins[message.chat.id].discard(user)
+            else:
+                text += user + " не является сисадмином этого чата\n"
+        if text:
+            bot.send_message(message.chat.id, text)
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
