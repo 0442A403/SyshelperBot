@@ -28,7 +28,6 @@ def log(message, description):
     query_log.close()
     print(description + " at ./logs/" + str(tm))
 
-
 @bot.message_handler(commands=['help'])
 @query_log
 def help_message(message):
