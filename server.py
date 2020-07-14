@@ -61,7 +61,7 @@ def help_message(message):
 Для владельца/администраторов:
 /add_sysadmin@"""+MY_NAME+""" @user - добавить пользователя @user в список сисадминов.
 /remove_sysadmin@"""+MY_NAME+""" @user - убрать пользователя @user из списка сисадминов
-/list_sysadmins@"""+MY_NAME+""" - вывести всех сисадминов
+/list_sysadmins@"""+MY_NAME+""" - список всех сисадминов
 Для сисадминов:
 При возникновении проблемы любой сисадмин может ее принять, нажав на кнопку под соответсвующим сообщением бота.
 /report id - отправить отчет по проблеме id.
@@ -85,14 +85,16 @@ def add_sysadmin_message(message):
             if not user:
                 continue
             if user.isalnum():
-                allsys.add(user)
+                if user not in allsys:
+                    allsys[user] = 0
+                allsys[user] += 1
                 sysadmins[message.chat.id].add(user)
                 add_sysadmin_sql(message.chat.id, user)
                 print("Sysadmin " + user + " is now sysadmin")
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
-@bot.message_handler(commands=['remove_sysadmin'])
+@bot.message_handler(commands = ['remove_sysadmin'])
 @query_log
 def remove_sysadmin_message(message):
     if not supported_chat(message):
@@ -107,14 +109,16 @@ def remove_sysadmin_message(message):
         for i in range(1, len(call)):
             user = call[i] if call[i][0] != "@" else call[i][1:]
             if user in sysadmins[message.chat.id]:
-                allsys.disicard(user)
+                allsys[user] -= 1
+                if allsys[user] == 0:
+                    allsys.pop(user)
                 remove_sysadmin_sql(message.chat.id, user)
                 print("Sysadmin " + user + " is not sysadmin anymore")
             sysadmins[message.chat.id].discard(user)
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
-@bot.message_handler(commands=['list_sysadmins'])
+@bot.message_handler(commands = ['list_sysadmins'])
 @query_log
 def list_sysadmins_message(message):
     if not supported_chat(message):
@@ -135,7 +139,7 @@ def list_sysadmins_message(message):
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
-@bot.message_handler(commands=['problem'])
+@bot.message_handler(commands = ['problem'])
 @query_log
 def problem_message(message):
     if not supported_chat(message):
@@ -313,7 +317,11 @@ for row in rows:
     if (int(row[0]) not in sysadmins):
         sysadmins[int(row[0])] = set()
     sysadmins[int(row[0])].add(row[1])
-    allsys.add(row[1])
+
+    if not row[1] in allsys:
+        allsys[row[1]] = 0
+
+    allsys[row[1]] += 1
 
 
 bot.polling()
