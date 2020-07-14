@@ -28,7 +28,7 @@ def log(message, description):
     query_log.close()
     print(description + " at ./logs/" + str(tm))
 
-@bot.message_handler(commands=['help','start'])
+@bot.message_handler(commands=['help'])
 @query_log
 def help_message(message):
     text = """SysadminHelpBot - бот, стремящийся облегчить жизнь сисадминам и взаимодействие с ними.
@@ -38,9 +38,7 @@ def help_message(message):
 /remove_sysadmin@SysadminHelpBot @user - убрать пользователя @user из списка сисадминов
 /list_sysadmins@SysadminHelpBot - вывести всех сисадминов
 Для сисадминов:
-При возникновении проблемы любой сисадмин может ее принять, нажав на кнопку под соответсвующим сообщением бота.
-/report id - отправить отчет по проблеме id.
-/get_report id - взять отчет по проблеме id."""
+/report id - отправить отчет по проблеме id"""
     bot.send_message(message.chat.id, text)
 
 @bot.message_handler(commands=['add_sysadmin'])
