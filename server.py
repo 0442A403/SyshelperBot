@@ -6,7 +6,6 @@ import time
 import string
 
 bot = telebot.TeleBot('1356395096:AAHzRpEMZdjHNLDOT2xrBirbMfehCYFe2sE')
-chats = {}
 
 MY_NAME = bot.get_me().username
 
@@ -25,14 +24,26 @@ class Problem:
     def __init__(self, input):
         self.id, self.state, self.from_user, self.occurence_time, self.sysadmin, self.binding_time, self.report_time, self.report, self.bot_message_id, self.chat_id = input
 
-def supported_chat(message):
-    if message.chat.id not in chats:
-        if message.chat.type == "private" and message.from_user.username in allsys:
-            return True
-        bot.send_message(message.chat.id, "Этот чат не обслуживается");
-        print(message.from_user.username + " is knocking in " + str(message.chat.id));
-        return False
-    return True
+def knock(message, value):
+    print(message.from_user.username + " is knocking in " + str(message.chat.id));
+    return value
+
+def supported_chat(message, group_allowed=False, private_allowed=False):
+    if message.chat.type == "group" or message.chat.type == "supergroup":
+        if not group_allowed:
+            bot.send_message(message.chat.id, "Эта функция может быть вызвана только из личной переписки со мной")
+            return knock(message, False)
+        if message.chat.id not in chats:
+            bot.send_message(message.chat.id, "Этот чат не обслуживается")
+            return knock(message, False)
+        return True
+    else:
+        if not private_allowed:
+            bot.send_message(message.chat.id, "Эта функция может быть вызвана только из чата")
+            return knock(message, False)
+        if message.from_user.username not in allsys:
+            return knock(message, False)
+        return True
 
 def query_log(function):
     def wrapper(message):
@@ -51,10 +62,10 @@ def log(message, description):
     query_log.close()
     print(description + " at ./logs/" + str(tm))
 
-@bot.message_handler(commands = ['help','start'])
+@bot.message_handler(commands=['help','start'])
 @query_log
 def help_message(message):
-    if not supported_chat(message):
+    if not supported_chat(message, group_allowed=True, private_allowed=True):
         return
     text = MY_NAME+""" - бот, стремящийся облегчить жизнь сисадминам и взаимодействие с ними.
 /problem - сообщить о проблеме.
@@ -71,10 +82,10 @@ def help_message(message):
 @bot.message_handler(commands=['add_sysadmin'])
 @query_log
 def add_sysadmin_message(message):
-    if not supported_chat(message):
+    if not supported_chat(message, group_allowed=True):
         return
     status = bot.get_chat_member(message.chat.id, message.from_user.id).status
-    call = message.text.strip().split()
+    call = message.text.split()
     if len(call) < 2:
         bot.send_message(message.chat.id, "Пожалуйста, укажите никнейм пользователя.\nПример: /add_sysadmin@"+MY_NAME+" @durov")
         return
@@ -91,7 +102,7 @@ def add_sysadmin_message(message):
                         allsys[user] = 0
                     allsys[user] += 1
                     sysadmins[message.chat.id].add(user)
-                    add_sysadmin_sql(message.chat.id, user)
+                    add_sysadmin(message.chat.id, user)
                     print("Sysadmin " + user + " is now sysadmin")
             else:
                 text += user + " уже является сисадмином этого чата\n"
@@ -100,10 +111,10 @@ def add_sysadmin_message(message):
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
-@bot.message_handler(commands = ['remove_sysadmin'])
+@bot.message_handler(commands=['remove_sysadmin'])
 @query_log
 def remove_sysadmin_message(message):
-    if not supported_chat(message):
+    if not supported_chat(message, group_allowed=True):
         return
 
     status = bot.get_chat_member(message.chat.id, message.from_user.id).status
@@ -119,7 +130,7 @@ def remove_sysadmin_message(message):
                 allsys[user] -= 1
                 if allsys[user] == 0:
                     allsys.pop(user)
-                remove_sysadmin_sql(message.chat.id, user)
+                remove_sysadmin(message.chat.id, user)
                 print("Sysadmin " + user + " is not sysadmin anymore")
                 sysadmins[message.chat.id].discard(user)
             else:
@@ -129,10 +140,10 @@ def remove_sysadmin_message(message):
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
-@bot.message_handler(commands = ['list_sysadmins'])
+@bot.message_handler(commands=['list_sysadmins'])
 @query_log
 def list_sysadmins_message(message):
-    if not supported_chat(message):
+    if not supported_chat(message, group_allowed=True):
         return
 
     status = bot.get_chat_member(message.chat.id, message.from_user.id).status
@@ -150,10 +161,10 @@ def list_sysadmins_message(message):
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
-@bot.message_handler(commands = ['problem'])
+@bot.message_handler(commands=['problem'])
 @query_log
 def problem_message(message):
-    if not supported_chat(message):
+    if not supported_chat(message, group_allowed=True):
         return
     id = unique_id()
     text = "У @" + message.from_user.username + " возникла проблема. id: " + id + "\n"
@@ -168,27 +179,22 @@ def problem_message(message):
 @bot.callback_query_handler(func = lambda call: call.data)
 @query_log
 def bind_problem_query(call):
-    if not supported_chat(call.message):
-        return
     if call.from_user.username in sysadmins[call.message.chat.id]:
         if bind_problem(call.data, time.time(), call.from_user.id):
             problem = get_problem(call.data)
             bot.edit_message_text(call.message.text + "\nПроблему решает @" + call.from_user.username + ".",
-                    chat_id = problem.chat_id,
-                    message_id = problem.bot_message_id)
-            print("Problem #" + str(problem.id) + " is binded by " + call.from_user.username + "/" + str(call.from_user.id))
+                    chat_id=problem.chat_id,
+                    message_id=problem.bot_message_id)
+            print("Problem " + str(problem.id) + " is binded by " + call.from_user.username + "/" + str(call.from_user.id))
         else:
-            bot.answer_callback_query(callback_query_id = call.id, text = "Проблему уже кто-то решает.")
+            bot.answer_callback_query(callback_query_id=call.id, text="Проблему уже кто-то решает.")
     else:
-        bot.answer_callback_query(callback_query_id = call.id, text = "Взять проблему могут только сисадмины.")
+        bot.answer_callback_query(callback_query_id=call.id, text="Взять проблему могут только сисадмины.")
 
-@bot.message_handler(commands = ['report'])
+@bot.message_handler(commands=['report'])
 @query_log
 def report_message(message):
-    if message.chat.type != 'private':
-        if not supported_chat(message):
-            return
-        bot.send_message(message.chat.id, "Эта функция может быть вызвана только из личной переписки со мной.")
+    if not supported_chat(message, private_allowed=True):
         return
     text = message.text
     ind = 0
@@ -202,7 +208,7 @@ def report_message(message):
         ind += 1
     report = text[ind:].strip()
     if not id:
-        bot.send_message(message.chat.id, "Пожалуйста, укажите id проблемы.\nЕго можно найти в соответствующем сообщении бота.\nПример: /report@"+MY_NAME+" 0D23e5A719a2cdBf5hFj")
+        bot.send_message(message.chat.id, "Пожалуйста, укажите id проблемы.\nЕго можно найти в соответствующем сообщении бота.\nПример: /report@" + MY_NAME + " 0D23e5A719a2cdBf5hFj")
         return
     problem = get_problem(id)
     if not problem:
@@ -212,23 +218,17 @@ def report_message(message):
         bot.send_message(message.chat.id, "Вы не можете отправлять отчет по этому кейсу")
         return
     report_problem(id, time.time(), report)
-    print("Problem #" + str(id) + " got reported by user " + message.from_user.username + "/" + str(message.from_user.id))
+    print("Problem " + str(id) + " got reported by user " + message.from_user.username + "/" + str(message.from_user.id))
 
-@bot.message_handler(commands = ['get_report'])
+@bot.message_handler(commands=['get_report'])
 @query_log
 def get_report_message(message):
-    #ignore = False
-    #Обработка
-    #if ignore:
-    #    return
-    # Хочется скипать запросы левых чуваков
-    if message.chat.type != 'private':
-        bot.send_message(message.chat.id, "Эта функция может быть вызвана только из личной переписки со мной.")
+    if not supported_chat(message, private_allowed=True):
         return
     text = message.text
     words = text.split()
     if len(words) < 2:
-        bot.send_message(message.chat.id, "Пожалуйста, укажите id проблемы.\nЕго можно найти в соответствующем сообщении бота.\nПример: /get_report@"+MY_NAME+" 0D23e5A719a2cdBf5hFj")
+        bot.send_message(message.chat.id, "Пожалуйста, укажите id проблемы.\nЕго можно найти в соответствующем сообщении бота.\nПример: /get_report@" + MY_NAME + " 0D23e5A719a2cdBf5hFj")
         return
     id = text.split()[1]
     problem = get_problem(id)
@@ -242,17 +242,15 @@ def get_report_message(message):
         bot.send_message(message.chat.id, "Отчет по кейсу не сдан")
         return
     bot.send_message(message.chat.id, "Пустой отчет" if not problem.report else problem.report)
-    print("Problem #" + str(id) + " report is transfarred to " + message.from_user.username + "/" + str(message.from_user.id))
+    print("Problem " + str(id) + " report is transfarred to " + message.from_user.username + "/" + str(message.from_user.id))
 
-def add_sysadmin_sql(chat_id, username):
+def add_sysadmin(chat_id, username):
     with sqlite3.connect("sysadmin.db") as db_connection:
         cursor = db_connection.cursor()
         cursor.execute('''INSERT INTO sysadmins(chat_id, username)
                           VALUES(?, ?)''', (str(chat_id), str(username)))
-        #for i in db_connection.execute("SELECT * FROM problems").fetchall():
-        #    print(i)
 
-def remove_sysadmin_sql(chat_id, username):
+def remove_sysadmin(chat_id, username):
     with sqlite3.connect("sysadmin.db") as db_connection:
         cursor = db_connection.cursor()
         cursor.execute('''DELETE FROM sysadmins WHERE chat_id = ? AND username = ?''', (str(chat_id), str(username)))
@@ -262,8 +260,6 @@ def add_problem(id, time, user_id, message_id, chat_id):
         cursor = db_connection.cursor()
         cursor.execute('''INSERT INTO problems(id, state, from_user, occurence_time, bot_message_id, chat_id)
                           VALUES(?, ?, ?, ?, ?, ?)''', (str(id), 0, str(user_id), str(time), str(message_id), str(chat_id)))
-        #for i in db_connection.execute("SELECT * FROM problems").fetchall():
-        #    print(i)
 
 def bind_problem(id, time, user):
     with sqlite3.connect("problem.db") as db_connection:
@@ -323,10 +319,8 @@ for row in rows:
     if (int(row[0]) not in sysadmins):
         sysadmins[int(row[0])] = set()
     sysadmins[int(row[0])].add(row[1])
-
     if not row[1] in allsys:
         allsys[row[1]] = 0
-
     allsys[row[1]] += 1
 
 
