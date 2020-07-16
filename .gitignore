@@ -1,4 +1,3 @@
 logs/
-sysadmin.db
-problem.db
+*.db
 report_file.txt

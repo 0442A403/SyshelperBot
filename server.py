@@ -11,6 +11,7 @@ bot = telebot.TeleBot('1356395096:AAHzRpEMZdjHNLDOT2xrBirbMfehCYFe2sE')
 MY_NAME = bot.get_me().username
 
 allsys = dict()
+users = dict()
 sysadmins = {}
 chats = { -1001167411877 }
 
@@ -24,6 +25,10 @@ def unique_id():
 class Problem:
     def __init__(self, input):
         self.id, self.state, self.from_user, self.occurence_time, self.sysadmin, self.binding_time, self.report_time, self.report, self.bot_message_id, self.chat_id = input
+
+class User:
+    def __init__(self, input):
+        self.id, self.username, self.first_name, self.last_name = input
 
 def supported_chat(message, group_allowed=False, private_allowed=False):
     if message.chat.type == "group" or message.chat.type == "supergroup":
@@ -42,24 +47,32 @@ def supported_chat(message, group_allowed=False, private_allowed=False):
             return False
         return True
 
-def query_log(function):
+def query_log(message):
+    tm = time.time()
+    query_log = open("./logs/" + str(tm), "x")
+    query_log.write(str(message))
+    query_log.close()
+
+def callback_log(message):
+    tm = time.time()
+    query_log = open("./logs/" + str(tm), "x")
+    query_log.write(str(message))
+    query_log.close()
+    print("Callback \"" + function.__name__ + "\" in chat " + str(message.message.chat.id) + " from " + str(message.from_user.id) + " is at ./logs/" + str(tm))
+
+def query_handler(function):
     def wrapper(message):
-        tm = time.time()
-        query_log = open("./logs/" + str(tm), "x")
-        query_log.write(str(message))
-        query_log.close()
-        print("Query \"" + function.__name__ + "\" in chat " + str(message.chat.id) + " from " + str(message.from_user.id) + " is at ./logs/" + str(tm))
+        user = message.from_user
+        add_user(str(user.id), user.username, user.first_name, user.last_name)
+        query_log(message)
         function(message)
     return wrapper
 
-def callback_log(function):
+def callback_handler(function):
     def wrapper(message):
-        tm = time.time()
-        query_log = open("./logs/" + str(tm), "x")
-        query_log.write(str(message))
-        query_log.close()
-        chat_id = message.message.chat.id
-        print("Callback \"" + function.__name__ + "\" in chat " + str(message.message.chat.id) + " from " + str(message.from_user.id) + " is at ./logs/" + str(tm))
+        user = message.from_user
+        add_user(user.id, user.username, user.first_name, user.last_name)
+        callback_handler(message)
         function(message)
     return wrapper
 
@@ -71,7 +84,7 @@ def log(message, description):
     print(description + " at ./logs/" + str(tm))
 
 @bot.message_handler(commands=['help','start'])
-@query_log
+@query_handler
 def help_message(message):
     if not supported_chat(message, group_allowed=True, private_allowed=True):
         return
@@ -88,7 +101,7 @@ def help_message(message):
     bot.send_message(message.chat.id, text)
 
 @bot.message_handler(commands=['add_sysadmin'])
-@query_log
+@query_handler
 def add_sysadmin_message(message):
     if not supported_chat(message, group_allowed=True):
         return
@@ -120,7 +133,7 @@ def add_sysadmin_message(message):
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
 @bot.message_handler(commands=['remove_sysadmin'])
-@query_log
+@query_handler
 def remove_sysadmin_message(message):
     if not supported_chat(message, group_allowed=True):
         return
@@ -149,7 +162,7 @@ def remove_sysadmin_message(message):
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
 @bot.message_handler(commands=['list_sysadmins'])
-@query_log
+@query_handler
 def list_sysadmins_message(message):
     if not supported_chat(message, group_allowed=True):
         return
@@ -170,7 +183,7 @@ def list_sysadmins_message(message):
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
 @bot.message_handler(commands=['problem'])
-@query_log
+@query_handler
 def problem_message(message):
     if not supported_chat(message, group_allowed=True):
         return
@@ -185,7 +198,7 @@ def problem_message(message):
     print("Problem recorded!")
 
 @bot.callback_query_handler(func = lambda call: call.data)
-@callback_log
+@callback_handler
 def bind_problem_query(call):
     if call.from_user.username in sysadmins[call.message.chat.id]:
         if bind_problem(call.data, time.time(), call.from_user.id):
@@ -200,7 +213,7 @@ def bind_problem_query(call):
         bot.answer_callback_query(callback_query_id=call.id, text="Взять проблему могут только сисадмины.")
 
 @bot.message_handler(commands=['report'])
-@query_log
+@query_handler
 def report_message(message):
     if not supported_chat(message, private_allowed=True):
         return
@@ -229,7 +242,7 @@ def report_message(message):
     print("Problem " + str(id) + " got reported by user " + message.from_user.username + "/" + str(message.from_user.id))
 
 @bot.message_handler(commands=['get_report'])
-@query_log
+@query_handler
 def get_report_message(message):
     if not supported_chat(message, private_allowed=True):
         return
@@ -253,26 +266,27 @@ def get_report_message(message):
     print("Problem " + str(id) + " report is transfarred to " + message.from_user.username + "/" + str(message.from_user.id))
 
 @bot.message_handler(commands=['get_time_period_report'])
-@query_log
+@query_handler
 def get_time_period_report_message(message):
     if not supported_chat(message, private_allowed=True):
         return
+    INCORRECT_FORMAT_MESSAGE = "Неверный формат запроса!\nПример: /get_time_period_report 5.7.2020 15.7.2020 - запрос всех отчетов с 5 июля 2020 года по 15 июля 2020 года"
     text = message.text
     words = text.split()
     if len(words) != 3:
-        bot.send_message(message.chat.id, "Неверный формат запроса!\nПример: /get_time_period_report 5.7.2020 15.7.2020 - запрос всех отчетов с 5 июля 2020 года по 15 июля 2020 года")
+        bot.send_message(message.chat.id, INCORRECT_FORMAT_MESSAGE)
         return
     date1 = words[1].split('.')
     date2 = words[2].split('.')
     if len(date1) != 3 or len(date2) != 3:
-        bot.send_message(message.chat.id, "Неверный формат запроса!\nПример: /get_time_period_report 5.7.2020 15.7.2020 - запрос всех отчетов с 5 июля 2020 года по 15 июля 2020 года")
+        bot.send_message(message.chat.id, INCORRECT_FORMAT_MESSAGE)
         print("lol")
         return
     try:
         date1 = datetime.datetime(int(date1[2]), int(date1[1]), int(date1[0]))
         date2 = datetime.datetime(int(date2[2]), int(date2[1]), int(date2[0]))
     except:
-        bot.send_message(message.chat.id, "Неверный формат запроса!\nПример: /get_time_period_report 5.7.2020 15.7.2020 - запрос всех отчетов с 5 июля 2020 года по 15 июля 2020 года")
+        bot.send_message(message.chat.id, INCORRECT_FORMAT_MESSAGE)
         return
     #Костыльный способ
     problems = get_time_period_report(message.from_user.id, (date1 - datetime.datetime(1969, 12, 31, 19)).total_seconds(), (date2 - datetime.datetime(1969, 12, 30, 19)).total_seconds())
@@ -286,17 +300,18 @@ def get_time_period_report_message(message):
         bot.send_message(message.chat.id, "SOS! Что-то пошло не так!")
         print("I couldn't open file!")
         return
-    report = "Отчет о работе с " + str(date1.day) + "." + str(date1.month) + "." + str(date1.year) + " года по " + str(date2.day) + "." + str(date2.month) + "." + str(date2.year) + " года \n"
+    report = "Отчет о работе с {:02d}.{:02d}.{:04d} по {:02d}.{:02d}.{:04d}\n\n".format(date1.day, date1.month, date1.year, date.day, date2.month, date2.year)
     i = 1
     for problem in problems:
         occurence_time = datetime.datetime.fromtimestamp(float(problem.occurence_time))
         binding_time = datetime.datetime.fromtimestamp(float(problem.binding_time))
         report_time = datetime.datetime.fromtimestamp(float(problem.report_time))
-        format_string = "{}.{}.{} {}:{}:{}"
+        format_string = "{:02d}.{:02d}.{:04d} {:02d}:{:02d}:{:02d}"
         occurence_time = format_string.format(occurence_time.day, occurence_time.month, occurence_time.year, occurence_time.hour, occurence_time.minute, occurence_time.second)
         binding_time = format_string.format(binding_time.day, binding_time.month, binding_time.year, binding_time.hour, binding_time.minute, binding_time.second)
         report_time = format_string.format(report_time.day, report_time.month, report_time.year, report_time.hour, report_time.minute, report_time.second)
-        problem_report = "{}) Сотрудник: {}\nВремя возникновения: {}\nВремя принятия: {}\nОтчет:\n{}\n".format(i, occurence_time, binding_time, report_time, problem.report)
+        user = users[problem.from_user].last_name + " " + users[problem.from_user].first_name
+        problem_report = "{})\nСотрудник: {}\nВремя возникновения: {}\nВремя принятия: {}\nВремя сдачи отчета: {}\nОтчет:\n{}\n\n".format(i, user, occurence_time, binding_time, report_time, problem.report)
         report += problem_report
         i += 1
     report_file.write(report)
@@ -306,24 +321,24 @@ def get_time_period_report_message(message):
     report_file.close()
 
 def add_sysadmin(chat_id, username):
-    with sqlite3.connect("sysadmin.db") as db_connection:
+    with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         cursor.execute('''INSERT INTO sysadmins(chat_id, username)
                           VALUES(?, ?)''', (str(chat_id), str(username)))
 
 def remove_sysadmin(chat_id, username):
-    with sqlite3.connect("sysadmin.db") as db_connection:
+    with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         cursor.execute('''DELETE FROM sysadmins WHERE chat_id = ? AND username = ?''', (str(chat_id), str(username)))
 
 def add_problem(id, time, user_id, message_id, chat_id):
-    with sqlite3.connect("problem.db") as db_connection:
+    with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         cursor.execute('''INSERT INTO problems(id, state, from_user, occurence_time, bot_message_id, chat_id)
                           VALUES(?, ?, ?, ?, ?, ?)''', (str(id), 0, str(user_id), str(time), str(message_id), str(chat_id)))
 
 def bind_problem(id, time, user):
-    with sqlite3.connect("problem.db") as db_connection:
+    with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         rows = cursor.execute('''SELECT state FROM problems WHERE id = ?''', (id,)).fetchall()
         if len(rows) == 0:
@@ -338,7 +353,7 @@ def bind_problem(id, time, user):
         return True
 
 def report_problem(id, time, report):
-    with sqlite3.connect("problem.db") as db_connection:
+    with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         cursor.execute('''UPDATE problems
             SET state = 2,
@@ -347,7 +362,7 @@ def report_problem(id, time, report):
             WHERE id = ?''', (time, report, id))
 
 def get_problem(id):
-    with sqlite3.connect("problem.db") as db_connection:
+    with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         rows = cursor.execute("SELECT * FROM problems WHERE id = ?", (id,)).fetchall()
         assert len(rows) < 2
@@ -356,12 +371,30 @@ def get_problem(id):
         return Problem(rows[0])
 
 def get_time_period_report(user, from_time, till_time):
-    with sqlite3.connect("problem.db") as db_connection:
+    with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         rows = cursor.execute("SELECT * FROM problems WHERE sysadmin = ? AND state = 2 AND occurence_time BETWEEN ? AND ?", (user, from_time, till_time)).fetchall()
         return map(lambda i: Problem(i), rows)
 
-db_connection = sqlite3.connect("problem.db")
+def add_user(user_id, username, first_name, last_name):
+    with sqlite3.connect("syshelper.db") as db_connection:
+        cursor  = db_connection.cursor()
+        if cursor.execute("SELECT EXISTS(SELECT * FROM users WHERE user_id = ?)", (user_id,)).fetchone():
+            cursor.execute('''UPDATE
+                                users
+                              SET
+                                username = ?,
+                                first_name = ?,
+                                last_name = ?
+                              WHERE
+                                user_id = ?''', (username, first_name, last_name, user_id))
+        else:
+            cursor.execute('''INSERT INTO
+                                users(user_id, username, first_name, last_name)
+                              VALUES(?, ?, ?, ?)''', (user_id, username, first_name, last_name))
+    users[user_id] = User((user_id, username, first_name, last_name))
+
+db_connection = sqlite3.connect("syshelper.db")
 cursor = db_connection.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS problems
              (id text,
@@ -375,12 +408,18 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS problems
              bot_message_id text,
              chat_id text)''')
 
-db_connection_sys = sqlite3.connect("sysadmin.db")
-cursor_sys = db_connection_sys.cursor()
-cursor_sys.execute('''CREATE TABLE IF NOT EXISTS sysadmins
+cursor.execute('''CREATE TABLE IF NOT EXISTS sysadmins
              (chat_id text,
              username text)''')
-rows = cursor_sys.execute("SELECT * FROM sysadmins", ()).fetchall()
+
+cursor.execute('''DROP TABLE users''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS users
+             (user_id text,
+             username text,
+             first_name text,
+             last_name text)''')
+
+rows = cursor.execute("SELECT * FROM sysadmins", ()).fetchall()
 for row in rows:
     if (int(row[0]) not in sysadmins):
         sysadmins[int(row[0])] = set()
@@ -389,5 +428,8 @@ for row in rows:
         allsys[row[1]] = 0
     allsys[row[1]] += 1
 
+rows = cursor.execute("SELECT * FROM users", ()).fetchall()
+for row in rows:
+    users[row[0]] = User(row)
 
 bot.polling()
