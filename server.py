@@ -1,20 +1,21 @@
+import datetime
 import telebot
 from telebot import types
+import time
 import random
 import sqlite3
-import time
 import string
+import os
 
 bot = telebot.TeleBot('1356395096:AAHzRpEMZdjHNLDOT2xrBirbMfehCYFe2sE')
-
 MY_NAME = bot.get_me().username
 
 allsys = dict()
 sysadmins = {}
-chats = {-1001167411877}
+chats = { -1001167411877 }
 
 for id in chats:
-    sysadmins[id] = set() # если оставляю пустым - падает
+    sysadmins[id] = set()
 #sysadmins[-495950868] = {"miska924", "DENIEDBY"}
 
 def unique_id():
@@ -24,25 +25,21 @@ class Problem:
     def __init__(self, input):
         self.id, self.state, self.from_user, self.occurence_time, self.sysadmin, self.binding_time, self.report_time, self.report, self.bot_message_id, self.chat_id = input
 
-def knock(message, value):
-    print(message.from_user.username + " is knocking in " + str(message.chat.id));
-    return value
-
 def supported_chat(message, group_allowed=False, private_allowed=False):
     if message.chat.type == "group" or message.chat.type == "supergroup":
         if not group_allowed:
             bot.send_message(message.chat.id, "Эта функция может быть вызвана только из личной переписки со мной")
-            return knock(message, False)
+            return False
         if message.chat.id not in chats:
             bot.send_message(message.chat.id, "Этот чат не обслуживается")
-            return knock(message, False)
+            return False
         return True
     else:
         if not private_allowed:
             bot.send_message(message.chat.id, "Эта функция может быть вызвана только из чата")
-            return knock(message, False)
+            return False
         if message.from_user.username not in allsys:
-            return knock(message, False)
+            return False
         return True
 
 def query_log(function):
@@ -51,7 +48,18 @@ def query_log(function):
         query_log = open("./logs/" + str(tm), "x")
         query_log.write(str(message))
         query_log.close()
-        print("Query \"" + function.__name__ + "\" at ./logs/" + str(tm))
+        print("Query \"" + function.__name__ + "\" in chat " + str(message.chat.id) + " from " + str(message.from_user.id) + " is at ./logs/" + str(tm))
+        function(message)
+    return wrapper
+
+def callback_log(function):
+    def wrapper(message):
+        tm = time.time()
+        query_log = open("./logs/" + str(tm), "x")
+        query_log.write(str(message))
+        query_log.close()
+        chat_id = message.message.chat.id
+        print("Callback \"" + function.__name__ + "\" in chat " + str(message.message.chat.id) + " from " + str(message.from_user.id) + " is at ./logs/" + str(tm))
         function(message)
     return wrapper
 
@@ -67,7 +75,7 @@ def log(message, description):
 def help_message(message):
     if not supported_chat(message, group_allowed=True, private_allowed=True):
         return
-    text = MY_NAME+""" - бот, стремящийся облегчить жизнь сисадминам и взаимодействие с ними.
+    text = """Сисхелпер - бот, стремящийся облегчить жизнь сисадминам и взаимодействие с ними.
 /problem - сообщить о проблеме.
 Для владельца/администраторов:
 /add_sysadmin@"""+MY_NAME+""" @user - добавить пользователя @user в список сисадминов.
@@ -169,7 +177,7 @@ def problem_message(message):
     id = unique_id()
     text = "У @" + message.from_user.username + " возникла проблема. id: " + id + "\n"
     for sa in sysadmins[message.chat.id]:
-        text += "@" + sa + " ";
+        text += "@" + sa + " "
     keyboard = telebot.types.InlineKeyboardMarkup()
     keyboard.add(types.InlineKeyboardButton('Заняться проблемой',callback_data=id))
     msg = bot.send_message(message.chat.id, text, reply_markup=keyboard)
@@ -177,7 +185,7 @@ def problem_message(message):
     print("Problem recorded!")
 
 @bot.callback_query_handler(func = lambda call: call.data)
-@query_log
+@callback_log
 def bind_problem_query(call):
     if call.from_user.username in sysadmins[call.message.chat.id]:
         if bind_problem(call.data, time.time(), call.from_user.id):
@@ -236,13 +244,66 @@ def get_report_message(message):
         bot.send_message(message.chat.id, "Неверный id")
         return
     if str(message.from_user.id) != str(problem.sysadmin):
-        bot.send_message(message.chat.id, "Извините, вы не можете запросить отчет по этому кейсу, так как кейс был взят другим сисадмином")
+        bot.send_message(message.chat.id, "Вы не можете запросить отчет по этому кейсу, так как кейс был взят другим сисадмином")
         return
     if problem.state != 2:
         bot.send_message(message.chat.id, "Отчет по кейсу не сдан")
         return
     bot.send_message(message.chat.id, "Пустой отчет" if not problem.report else problem.report)
     print("Problem " + str(id) + " report is transfarred to " + message.from_user.username + "/" + str(message.from_user.id))
+
+@bot.message_handler(commands=['get_time_period_report'])
+@query_log
+def get_time_period_report_message(message):
+    if not supported_chat(message, private_allowed=True):
+        return
+    text = message.text
+    words = text.split()
+    if len(words) != 3:
+        bot.send_message(message.chat.id, "Неверный формат запроса!\nПример: /get_time_period_report 5.7.2020 15.7.2020 - запрос всех отчетов с 5 июля 2020 года по 15 июля 2020 года")
+        return
+    date1 = words[1].split('.')
+    date2 = words[2].split('.')
+    if len(date1) != 3 or len(date2) != 3:
+        bot.send_message(message.chat.id, "Неверный формат запроса!\nПример: /get_time_period_report 5.7.2020 15.7.2020 - запрос всех отчетов с 5 июля 2020 года по 15 июля 2020 года")
+        print("lol")
+        return
+    try:
+        date1 = datetime.datetime(int(date1[2]), int(date1[1]), int(date1[0]))
+        date2 = datetime.datetime(int(date2[2]), int(date2[1]), int(date2[0]))
+    except:
+        bot.send_message(message.chat.id, "Неверный формат запроса!\nПример: /get_time_period_report 5.7.2020 15.7.2020 - запрос всех отчетов с 5 июля 2020 года по 15 июля 2020 года")
+        return
+    #Костыльный способ
+    problems = get_time_period_report(message.from_user.id, (date1 - datetime.datetime(1969, 12, 31, 19)).total_seconds(), (date2 - datetime.datetime(1969, 12, 30, 19)).total_seconds())
+    report_file = None
+    try:
+        if os.path.exists("./report_file.txt"):
+            report_file = open("./report_file.txt", "w")
+        else:
+            report_file = open("./report_file.txt", "x")
+    except:
+        bot.send_message(message.chat.id, "SOS! Что-то пошло не так!")
+        print("I couldn't open file!")
+        return
+    report = "Отчет о работе с " + str(date1.day) + "." + str(date1.month) + "." + str(date1.year) + " года по " + str(date2.day) + "." + str(date2.month) + "." + str(date2.year) + " года \n"
+    i = 1
+    for problem in problems:
+        occurence_time = datetime.datetime.fromtimestamp(float(problem.occurence_time))
+        binding_time = datetime.datetime.fromtimestamp(float(problem.binding_time))
+        report_time = datetime.datetime.fromtimestamp(float(problem.report_time))
+        format_string = "{}.{}.{} {}:{}:{}"
+        occurence_time = format_string.format(occurence_time.day, occurence_time.month, occurence_time.year, occurence_time.hour, occurence_time.minute, occurence_time.second)
+        binding_time = format_string.format(binding_time.day, binding_time.month, binding_time.year, binding_time.hour, binding_time.minute, binding_time.second)
+        report_time = format_string.format(report_time.day, report_time.month, report_time.year, report_time.hour, report_time.minute, report_time.second)
+        problem_report = "{}) Сотрудник: {}\nВремя возникновения: {}\nВремя принятия: {}\nОтчет:\n{}\n".format(i, occurence_time, binding_time, report_time, problem.report)
+        report += problem_report
+        i += 1
+    report_file.write(report)
+    report_file.close()
+    report_file = open("./report_file.txt", "r")
+    bot.send_document(message.chat.id, report_file)
+    report_file.close()
 
 def add_sysadmin(chat_id, username):
     with sqlite3.connect("sysadmin.db") as db_connection:
@@ -294,6 +355,11 @@ def get_problem(id):
             return None
         return Problem(rows[0])
 
+def get_time_period_report(user, from_time, till_time):
+    with sqlite3.connect("problem.db") as db_connection:
+        cursor = db_connection.cursor()
+        rows = cursor.execute("SELECT * FROM problems WHERE sysadmin = ? AND state = 2 AND occurence_time BETWEEN ? AND ?", (user, from_time, till_time)).fetchall()
+        return map(lambda i: Problem(i), rows)
 
 db_connection = sqlite3.connect("problem.db")
 cursor = db_connection.cursor()
