@@ -299,7 +299,7 @@ def get_time_period_report_message(message):
         bot.send_message(message.chat.id, "SOS! Что-то пошло не так!")
         print("I couldn't open file!")
         return
-    report = "Отчет о работе с {:02d}.{:02d}.{:04d} по {:02d}.{:02d}.{:04d}\n\n".format(date1.day, date1.month, date1.year, date2.day, date2.month, date2.year2)
+    report = "Отчет о работе с {:02d}.{:02d}.{:04d} по {:02d}.{:02d}.{:04d}\n\n".format(date1.day, date1.month, date1.year, date2.day, date2.month, date2.year)
     i = 1
     for problem in problems:
         occurence_time = datetime.datetime.fromtimestamp(float(problem.occurence_time))
