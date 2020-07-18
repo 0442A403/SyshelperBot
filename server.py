@@ -53,7 +53,7 @@ def query_log(message):
     query_log.write(str(message))
     query_log.close()
 
-def callback_log(message):
+def callback_log(function, message):
     tm = time.time()
     query_log = open("./logs/" + str(tm), "x")
     query_log.write(str(message))
@@ -72,7 +72,7 @@ def callback_handler(function):
     def wrapper(message):
         user = message.from_user
         add_user(user.id, user.username, user.first_name, user.last_name)
-        callback_handler(message)
+        callback_log(function, message)
         function(message)
     return wrapper
 
@@ -263,7 +263,7 @@ def get_report_message(message):
         bot.send_message(message.chat.id, "Отчет по кейсу не сдан")
         return
     bot.send_message(message.chat.id, "Пустой отчет" if not problem.report else problem.report)
-    print("Problem " + str(id) + " report is transfarred to " + message.from_user.username + "/" + str(message.from_user.id))
+    print("Problem " + str(id) + " report was shown to " + message.from_user.username + "/" + str(message.from_user.id))
 
 @bot.message_handler(commands=['get_time_period_report'])
 @query_handler
@@ -280,7 +280,6 @@ def get_time_period_report_message(message):
     date2 = words[2].split('.')
     if len(date1) != 3 or len(date2) != 3:
         bot.send_message(message.chat.id, INCORRECT_FORMAT_MESSAGE)
-        print("lol")
         return
     try:
         date1 = datetime.datetime(int(date1[2]), int(date1[1]), int(date1[0]))
@@ -300,7 +299,7 @@ def get_time_period_report_message(message):
         bot.send_message(message.chat.id, "SOS! Что-то пошло не так!")
         print("I couldn't open file!")
         return
-    report = "Отчет о работе с {:02d}.{:02d}.{:04d} по {:02d}.{:02d}.{:04d}\n\n".format(date1.day, date1.month, date1.year, date.day, date2.month, date2.year)
+    report = "Отчет о работе с {:02d}.{:02d}.{:04d} по {:02d}.{:02d}.{:04d}\n\n".format(date1.day, date1.month, date1.year, date2.day, date2.month, date2.year)
     i = 1
     for problem in problems:
         occurence_time = datetime.datetime.fromtimestamp(float(problem.occurence_time))
@@ -412,7 +411,6 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS sysadmins
              (chat_id text,
              username text)''')
 
-cursor.execute('''DROP TABLE users''')
 cursor.execute('''CREATE TABLE IF NOT EXISTS users
              (user_id text,
              username text,
@@ -431,5 +429,48 @@ for row in rows:
 rows = cursor.execute("SELECT * FROM users", ()).fetchall()
 for row in rows:
     users[row[0]] = User(row)
+    print(User(row).username)
 
+
+from threading import Timer
+
+class RepeatedTimer(object):
+    def __init__(self, interval, function, *args, **kwargs):
+        self._timer     = None
+        self.interval   = interval
+        self.function   = function
+        self.args       = args
+        self.kwargs     = kwargs
+        self.is_running = False
+        self.start()
+
+    def _run(self):
+        self.is_running = False
+        self.start()
+        self.function(*self.args, **self.kwargs)
+
+    def start(self):
+        if not self.is_running:
+            self._timer = Timer(self.interval, self._run)
+            self._timer.start()
+            self.is_running = True
+
+    def stop(self):
+        self._timer.cancel()
+        self.is_running = False
+
+from time import sleep
+
+def check_for_reports():
+    with sqlite3.connect("syshelper.db") as db_connection:
+        cursor = db_connection.cursor()
+        rows = cursor.execute('''SELECT * FROM problems WHERE state = ?''', (1,)).fetchall()
+
+        for problem in rows:
+            if problem[4] in users:
+                bot.send_message(problem[9], "@" + users[problem[4]].username + " не подготовил отчёт по проблеме " + problem[0]);
+                print(users[problem[4]].username)
+
+print("starting...")
+rt = RepeatedTimer(60, check_for_reports)
 bot.polling()
