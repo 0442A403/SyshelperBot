@@ -2,33 +2,15 @@ import datetime
 import telebot
 from telebot import types
 import time
-import random
-import sqlite3
-import string
 import os
+from db import *
+from logs import *
+from utils import *
+from problem import *
+from user import User
 
 bot = telebot.TeleBot('1356395096:AAHzRpEMZdjHNLDOT2xrBirbMfehCYFe2sE')
 MY_NAME = bot.get_me().username
-
-allsys = dict()
-users = dict()
-sysadmins = {}
-chats = { -1001167411877 }
-
-for id in chats:
-    sysadmins[id] = set()
-#sysadmins[-495950868] = {"miska924", "DENIEDBY"}
-
-def unique_id():
-    return ''.join(random.choice(string.ascii_uppercase + string.ascii_lowercase + string.digits) for _ in range(20))
-
-class Problem:
-    def __init__(self, input):
-        self.id, self.state, self.from_user, self.occurence_time, self.sysadmin, self.binding_time, self.report_time, self.report, self.bot_message_id, self.chat_id = input
-
-class User:
-    def __init__(self, input):
-        self.id, self.username, self.first_name, self.last_name = input
 
 def supported_chat(message, group_allowed=False, private_allowed=False):
     if message.chat.type == "group" or message.chat.type == "supergroup":
@@ -46,42 +28,6 @@ def supported_chat(message, group_allowed=False, private_allowed=False):
         if message.from_user.username not in allsys:
             return False
         return True
-
-def query_log(message):
-    tm = time.time()
-    query_log = open("./logs/" + str(tm), "x")
-    query_log.write(str(message))
-    query_log.close()
-
-def callback_log(function, message):
-    tm = time.time()
-    query_log = open("./logs/" + str(tm), "x")
-    query_log.write(str(message))
-    query_log.close()
-    print("Callback \"" + function.__name__ + "\" in chat " + str(message.message.chat.id) + " from " + str(message.from_user.id) + " is at ./logs/" + str(tm))
-
-def query_handler(function):
-    def wrapper(message):
-        user = message.from_user
-        add_user(str(user.id), user.username, user.first_name, user.last_name)
-        query_log(message)
-        function(message)
-    return wrapper
-
-def callback_handler(function):
-    def wrapper(message):
-        user = message.from_user
-        add_user(user.id, user.username, user.first_name, user.last_name)
-        callback_log(function, message)
-        function(message)
-    return wrapper
-
-def log(message, description):
-    tm = time.time()
-    query_log = open("./logs/" + str(tm), "x")
-    query_log.write(str(message))
-    query_log.close()
-    print(description + " at ./logs/" + str(tm))
 
 @bot.message_handler(commands=['help','start'])
 @query_handler
@@ -263,7 +209,7 @@ def get_report_message(message):
         bot.send_message(message.chat.id, "Отчет по кейсу не сдан")
         return
     bot.send_message(message.chat.id, "Пустой отчет" if not problem.report else problem.report)
-    print("Problem " + str(id) + " report was shown to " + message.from_user.username + "/" + str(message.from_user.id))
+    print("Problem " + str(id) + " report is transfarred to " + message.from_user.username + "/" + str(message.from_user.id))
 
 @bot.message_handler(commands=['get_time_period_report'])
 @query_handler
@@ -280,6 +226,7 @@ def get_time_period_report_message(message):
     date2 = words[2].split('.')
     if len(date1) != 3 or len(date2) != 3:
         bot.send_message(message.chat.id, INCORRECT_FORMAT_MESSAGE)
+        print("lol")
         return
     try:
         date1 = datetime.datetime(int(date1[2]), int(date1[1]), int(date1[0]))
@@ -319,158 +266,5 @@ def get_time_period_report_message(message):
     bot.send_document(message.chat.id, report_file)
     report_file.close()
 
-def add_sysadmin(chat_id, username):
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor = db_connection.cursor()
-        cursor.execute('''INSERT INTO sysadmins(chat_id, username)
-                          VALUES(?, ?)''', (str(chat_id), str(username)))
-
-def remove_sysadmin(chat_id, username):
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor = db_connection.cursor()
-        cursor.execute('''DELETE FROM sysadmins WHERE chat_id = ? AND username = ?''', (str(chat_id), str(username)))
-
-def add_problem(id, time, user_id, message_id, chat_id):
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor = db_connection.cursor()
-        cursor.execute('''INSERT INTO problems(id, state, from_user, occurence_time, bot_message_id, chat_id)
-                          VALUES(?, ?, ?, ?, ?, ?)''', (str(id), 0, str(user_id), str(time), str(message_id), str(chat_id)))
-
-def bind_problem(id, time, user):
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor = db_connection.cursor()
-        rows = cursor.execute('''SELECT state FROM problems WHERE id = ?''', (id,)).fetchall()
-        if len(rows) == 0:
-            return False
-        if rows[0][0] != 0:
-            return False
-        cursor.execute('''UPDATE problems
-            SET state = 1,
-                binding_time = ? ,
-                sysadmin = ?
-            WHERE id = ?''', (time, user, id))
-        return True
-
-def report_problem(id, time, report):
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor = db_connection.cursor()
-        cursor.execute('''UPDATE problems
-            SET state = 2,
-                report_time = ?,
-                report = ?
-            WHERE id = ?''', (time, report, id))
-
-def get_problem(id):
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor = db_connection.cursor()
-        rows = cursor.execute("SELECT * FROM problems WHERE id = ?", (id,)).fetchall()
-        assert len(rows) < 2
-        if len(rows) == 0:
-            return None
-        return Problem(rows[0])
-
-def get_time_period_report(user, from_time, till_time):
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor = db_connection.cursor()
-        rows = cursor.execute("SELECT * FROM problems WHERE sysadmin = ? AND state = 2 AND occurence_time BETWEEN ? AND ?", (user, from_time, till_time)).fetchall()
-        return map(lambda i: Problem(i), rows)
-
-def add_user(user_id, username, first_name, last_name):
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor  = db_connection.cursor()
-        if cursor.execute("SELECT EXISTS(SELECT * FROM users WHERE user_id = ?)", (user_id,)).fetchone():
-            cursor.execute('''UPDATE
-                                users
-                              SET
-                                username = ?,
-                                first_name = ?,
-                                last_name = ?
-                              WHERE
-                                user_id = ?''', (username, first_name, last_name, user_id))
-        else:
-            cursor.execute('''INSERT INTO
-                                users(user_id, username, first_name, last_name)
-                              VALUES(?, ?, ?, ?)''', (user_id, username, first_name, last_name))
-    users[user_id] = User((user_id, username, first_name, last_name))
-
-db_connection = sqlite3.connect("syshelper.db")
-cursor = db_connection.cursor()
-cursor.execute('''CREATE TABLE IF NOT EXISTS problems
-             (id text,
-             state integer,
-             from_user text,
-             occurence_time text,
-             sysadmin text,
-             binding_time text,
-             report_time text,
-             report text,
-             bot_message_id text,
-             chat_id text)''')
-
-cursor.execute('''CREATE TABLE IF NOT EXISTS sysadmins
-             (chat_id text,
-             username text)''')
-
-cursor.execute('''CREATE TABLE IF NOT EXISTS users
-             (user_id text,
-             username text,
-             first_name text,
-             last_name text)''')
-
-rows = cursor.execute("SELECT * FROM sysadmins", ()).fetchall()
-for row in rows:
-    if (int(row[0]) not in sysadmins):
-        sysadmins[int(row[0])] = set()
-    sysadmins[int(row[0])].add(row[1])
-    if not row[1] in allsys:
-        allsys[row[1]] = 0
-    allsys[row[1]] += 1
-
-rows = cursor.execute("SELECT * FROM users", ()).fetchall()
-for row in rows:
-    users[row[0]] = User(row)
-    print(User(row).username)
-
-
-from threading import Timer
-
-class RepeatedTimer(object):
-    def __init__(self, interval, function, *args, **kwargs):
-        self._timer     = None
-        self.interval   = interval
-        self.function   = function
-        self.args       = args
-        self.kwargs     = kwargs
-        self.is_running = False
-        self.start()
-
-    def _run(self):
-        self.is_running = False
-        self.start()
-        self.function(*self.args, **self.kwargs)
-
-    def start(self):
-        if not self.is_running:
-            self._timer = Timer(self.interval, self._run)
-            self._timer.start()
-            self.is_running = True
-
-    def stop(self):
-        self._timer.cancel()
-        self.is_running = False
-
-from time import sleep
-
-def check_for_reports():
-    with sqlite3.connect("syshelper.db") as db_connection:
-        cursor = db_connection.cursor()
-        rows = cursor.execute('''SELECT * FROM problems WHERE state = ?''', (1,)).fetchall()
-
-        for problem in rows:
-            if problem[4] in users:
-                bot.send_message(problem[9], "@" + users[problem[4]].username + " не подготовил отчёт по проблеме " + problem[0]);
-                print(users[problem[4]].username)
-
-print("starting...")
-rt = RepeatedTimer(60, check_for_reports)
+init()
 bot.polling()
