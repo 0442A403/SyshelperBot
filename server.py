@@ -61,16 +61,16 @@ def add_sysadmin_message(message):
         for i in range(1, len(call)):
             #Проверка, что пользователь $i находится в чате???
             user = call[i] if call[i][0] != "@" else call[i][1:]
+            user = user.lower()
+            if not user or not user.isalnum():
+                continue
             if user not in sysadmins[message.chat.id]:
-                if not user:
-                    continue
-                if user.isalnum():
-                    if user not in allsys:
+                if user not in allsys:
                         allsys[user] = 0
-                    allsys[user] += 1
-                    sysadmins[message.chat.id].add(user)
-                    add_sysadmin(message.chat.id, user)
-                    print("Sysadmin " + user + " is now sysadmin")
+                allsys[user] += 1
+                sysadmins[message.chat.id].add(user)
+                add_sysadmin(message.chat.id, user)
+                print("Sysadmin " + user + " is now sysadmin")
             else:
                 text += user + " уже является сисадмином этого чата\n"
         if text:
@@ -266,5 +266,7 @@ def get_time_period_report_message(message):
     bot.send_document(message.chat.id, report_file)
     report_file.close()
 
+if not os.path.isdir("./logs"):
+    os.system("mkdir logs")
 init()
 bot.polling()

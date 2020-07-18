@@ -49,12 +49,14 @@ def init():
         users[row[0]] = User(row)
 
 def add_sysadmin(chat_id, username):
+    username = username.lower()
     with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         cursor.execute('''INSERT INTO sysadmins(chat_id, username)
                           VALUES(?, ?)''', (str(chat_id), str(username)))
 
 def remove_sysadmin(chat_id, username):
+    username = username.lower()
     with sqlite3.connect("syshelper.db") as db_connection:
         cursor = db_connection.cursor()
         cursor.execute('''DELETE FROM sysadmins WHERE chat_id = ? AND username = ?''', (str(chat_id), str(username)))
@@ -105,6 +107,7 @@ def get_time_period_report(user, from_time, till_time):
         return map(lambda i: Problem(i), rows)
 
 def add_user(user_id, username, first_name, last_name):
+    username = username.lower()
     with sqlite3.connect("syshelper.db") as db_connection:
         cursor  = db_connection.cursor()
         if cursor.execute("SELECT EXISTS(SELECT * FROM users WHERE user_id = ?)", (user_id,)).fetchone():

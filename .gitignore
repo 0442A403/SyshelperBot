@@ -1,3 +1,4 @@
 logs/
 *.db
 report_file.txt
+__pycache__
