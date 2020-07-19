@@ -110,7 +110,7 @@ def add_user(user_id, username, first_name, last_name):
     username = username.lower()
     with sqlite3.connect("syshelper.db") as db_connection:
         cursor  = db_connection.cursor()
-        if cursor.execute("SELECT EXISTS(SELECT * FROM users WHERE user_id = ?)", (user_id,)).fetchone():
+        if cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)).fetchone() is not None:
             cursor.execute('''UPDATE
                                 users
                               SET
