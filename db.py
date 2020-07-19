@@ -124,3 +124,13 @@ def add_user(user_id, username, first_name, last_name):
                                 users(user_id, username, first_name, last_name)
                               VALUES(?, ?, ?, ?)''', (user_id, username, first_name, last_name))
     users[user_id] = User((user_id, username, first_name, last_name))
+
+def check_for_reports(bot):
+    with sqlite3.connect("syshelper.db") as db_connection:
+        cursor = db_connection.cursor()
+        rows = cursor.execute('''SELECT * FROM problems WHERE state = ?''', (1,)).fetchall()
+
+        for problem in rows:
+            if problem[4] in users:
+                bot.send_message(problem[9], "@" + users[problem[4]].username + " не подготовил отчёт по проблеме " + problem[0]);
+                print(users[problem[4]].username)

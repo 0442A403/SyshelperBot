@@ -8,6 +8,7 @@ from logs import *
 from utils import *
 from problem import *
 from user import User
+from timer import *
 
 bot = telebot.TeleBot('1356395096:AAHzRpEMZdjHNLDOT2xrBirbMfehCYFe2sE')
 MY_NAME = bot.get_me().username
@@ -29,9 +30,9 @@ def supported_chat(message, group_allowed=False, private_allowed=False):
             return False
         return True
 
-@bot.message_handler(commands=['help','start'])
+@bot.message_handler(commands=['info','start'])
 @query_handler
-def help_message(message):
+def info_message(message):
     if not supported_chat(message, group_allowed=True, private_allowed=True):
         return
     text = """Сисхелпер - бот, стремящийся облегчить жизнь сисадминам и взаимодействие с ними.
@@ -128,9 +129,9 @@ def list_sysadmins_message(message):
     else:
         bot.send_message(message.chat.id, "Эту функцию могут вызвать только создатель и администраторы.")
 
-@bot.message_handler(commands=['problem'])
+@bot.message_handler(commands=['help'])
 @query_handler
-def problem_message(message):
+def help_message(message):
     if not supported_chat(message, group_allowed=True):
         return
     id = unique_id()
@@ -269,4 +270,8 @@ def get_time_period_report_message(message):
 if not os.path.isdir("./logs"):
     os.system("mkdir logs")
 init()
+
+print("starting...")
+print(users)
+#rt = RepeatedTimer(1, check_for_reports, bot)
 bot.polling()
