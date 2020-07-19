@@ -36,7 +36,7 @@ def info_message(message):
     if not supported_chat(message, group_allowed=True, private_allowed=True):
         return
     text = """Сисхелпер - бот, стремящийся облегчить жизнь сисадминам и взаимодействие с ними.
-/problem - сообщить о проблеме.
+/help - сообщить о проблеме.
 Для владельца/администраторов:
 /add_sysadmin@"""+MY_NAME+""" @user - добавить пользователя @user в список сисадминов.
 /remove_sysadmin@"""+MY_NAME+""" @user - убрать пользователя @user из списка сисадминов
@@ -44,7 +44,9 @@ def info_message(message):
 Для сисадминов:
 При возникновении проблемы любой сисадмин может ее принять, нажав на кнопку под соответсвующим сообщением бота.
 /report id - отправить отчет по проблеме id.
-/get_report id - взять отчет по проблеме id."""
+/get_report id - взять отчет по проблеме id.
+/get_time_period_report дата дата - получить файл всех отчетов с даты 1 по дату 2.
+/info - вызвать это сообщение."""
     bot.send_message(message.chat.id, text)
 
 @bot.message_handler(commands=['add_sysadmin'])
