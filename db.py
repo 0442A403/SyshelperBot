@@ -5,7 +5,7 @@ from problem import Problem
 allsys = dict()
 users = dict()
 sysadmins = {}
-chats = { -1001167411877 }
+chats = { -1001167411877, -438486528 }
 
 def init():
     #sysadmins[-495950868] = {"miska924", "DENIEDBY"}

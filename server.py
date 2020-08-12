@@ -14,6 +14,7 @@ bot = telebot.TeleBot('1356395096:AAHzRpEMZdjHNLDOT2xrBirbMfehCYFe2sE')
 MY_NAME = bot.get_me().username
 
 def supported_chat(message, group_allowed=False, private_allowed=False):
+    print(message.chat.id)
     if message.chat.type == "group" or message.chat.type == "supergroup":
         if not group_allowed:
             bot.send_message(message.chat.id, "Эта функция может быть вызвана только из личной переписки со мной")
@@ -26,7 +27,7 @@ def supported_chat(message, group_allowed=False, private_allowed=False):
         if not private_allowed:
             bot.send_message(message.chat.id, "Эта функция может быть вызвана только из чата")
             return False
-        if message.from_user.username not in allsys:
+        if message.from_user.username.lower() not in allsys:
             return False
         return True
 
@@ -149,7 +150,7 @@ def help_message(message):
 @bot.callback_query_handler(func = lambda call: call.data)
 @callback_handler
 def bind_problem_query(call):
-    if call.from_user.username in sysadmins[call.message.chat.id]:
+    if call.from_user.username.lower() in sysadmins[call.message.chat.id]:
         if bind_problem(call.data, time.time(), call.from_user.id):
             problem = get_problem(call.data)
             bot.edit_message_text(call.message.text + "\nПроблему решает @" + call.from_user.username + ".",
@@ -229,7 +230,6 @@ def get_time_period_report_message(message):
     date2 = words[2].split('.')
     if len(date1) != 3 or len(date2) != 3:
         bot.send_message(message.chat.id, INCORRECT_FORMAT_MESSAGE)
-        print("lol")
         return
     try:
         date1 = datetime.datetime(int(date1[2]), int(date1[1]), int(date1[0]))
