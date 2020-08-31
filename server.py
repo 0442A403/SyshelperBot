@@ -10,7 +10,7 @@ from problem import *
 from user import User
 from timer import *
 
-bot = telebot.TeleBot('1356395096:AAHzRpEMZdjHNLDOT2xrBirbMfehCYFe2sE')
+bot = telebot.TeleBot('INSERT YOUR TOKEN HERE')
 MY_NAME = bot.get_me().username
 
 def supported_chat(message, group_allowed=False, private_allowed=False):
